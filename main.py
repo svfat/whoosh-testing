@@ -6,14 +6,9 @@ from whoosh.qparser import QueryParser, OrGroup, FuzzyTermPlugin
 from whoosh.fields import *
 from whoosh import scoring
 
-INDEXDIR_PATH = "indexdir"
-CORRECTOR = False
-SENTENCES = ["how are yoou",
-             "chateu lator meru",
-             "chateau lator",
-             "chateau latour",
-             "chateau latour merus",
-             "blak opul"]
+import config
+from data import SENTENCES
+
 
 
 def create_dir(directory):
@@ -49,13 +44,14 @@ def get_index(directory):
     return ix
 
 def main():
-    ix = get_index(INDEXDIR_PATH)
+    ix = get_index(config.INDEXDIR_PATH)
     qp = QueryParser("body", schema=ix.schema, group=OrGroup.factory(0.9))
     qp.add_plugin(FuzzyTermPlugin())
     for sentence in SENTENCES:
         q = qp.parse(sentence)
+        results = None
         with ix.searcher() as s:
-            if CORRECTOR:
+            if config.CORRECTOR:
                 corrected = s.correct_query(q, sentence)
                 if corrected.query != q:
                     print("Did you mean:", corrected.string)
@@ -63,9 +59,20 @@ def main():
                 q_str = corrected.string
             else:
                 query = q
-                q_str = sentence
-            results = s.search(query, terms=True)
-            print('BM25F scoring:', q_str, '->', [r['body'] for r in results])
+                info = sentence
+            results = [r['body'] for r in s.search(query, terms=True)]
+        if not results:
+            # nothing was found, adding ~ to each word
+            # very ugly solution, maybe we can use Whoosh stemming abilities
+            # http://whoosh.readthedocs.io/en/latest/stemming.html
+            chunks = sentence.split()
+            sentence = '~ '.join(chunks)+'~'
+            q = qp.parse(sentence)
+            with ix.searcher() as s:
+                query = q
+                info = 'FUZZY ' + sentence
+                results = [r['body'] for r in s.search(query, terms=True)]
+        print('BM25F scoring:', info, '->', results)
             #print('terms matched:', [r.matched_terms() for r in results])
     #    with ix.searcher(weighting=scoring.TF_IDF()) as s:
     #        corrected = s.correct_query(q, sentence)
