@@ -8,6 +8,7 @@ import ast
 import whoosh.index as index
 from whoosh.qparser import QueryParser, OrGroup, FuzzyTermPlugin, AndMaybeGroup
 from whoosh import query
+from whoosh.query import Query, Term, Or, And, FuzzyTerm, Phrase
 from whoosh import fields
 from whoosh import scoring
 from whoosh.analysis import StemmingAnalyzer
@@ -130,41 +131,46 @@ def find_ngrams(l: list, n: int):
     return list(zip(*[l[i:] for i in range(n)]))
 
 
-def perform_search(searcher, schema, sentence):
-    result = []
-    # first
-    from whoosh.query import FuzzyTerm
-    class MyFuzzyTerm(FuzzyTerm):
-        def __init__(self, fieldname, text, boost=1.0, maxdist=2, prefixlength=1, constantscore=True):
-            super().__init__(fieldname, text, boost, maxdist, prefixlength, constantscore)
+class MagiaSearch:
+    def __init__(self, index):
+        self._searcher = index.searcher
+        self._schema = index.schema
 
-    qp = QueryParser('text_value', schema=schema, group=OrGroup.factory(0.9), termclass=FuzzyTerm)
-    qp.add_plugin(FuzzyTermPlugin())
-    tokens = sentence.split()
-    ngrams = find_ngrams(tokens, 1)
-    chunks = [' '.join(x) for x in ngrams]
-    search_query = ' OR '.join(chunks) + ' OR (' + ' AND '.join(chunks) + ')'
-    q = qp.parse(search_query)
-    search_result = searcher.search(q, terms=True, limit=1)
-    values = [x['text_value'] for x in search_result]
-    matched = [match[1].decode('utf-8') for x in search_result for match in x.matched_terms()]
-    if values:
-        return values[0], list(set(matched))
-    else:
-        return None, None
-
+    def perform_search(self, sentence):
+        with self._searcher() as s:
+            tokens = sentence.split()
+            tokens = [token for token in tokens if token != REPLACED]
+            f = 'text_value'
+            exact_and_match = And([Term(f, token) for token in tokens], boost=4)
+            exact_or_match = Or([Term(f, token) for token in tokens], boost=2, scale=0.9)
+            fuzzy_or_match = Or([FuzzyTerm(f, token, prefixlength=2) for token in tokens if len(token) >= 4], boost=1, scale=0.9)
+            #q = exact_and_match \
+                # | exact_or_match \
+                # | fuzzy_or_match
+            q = exact_and_match | exact_or_match | fuzzy_or_match
+            #q = exact_and_match
+            print(q)
+            search_result = s.search(q, terms=True, limit=10)
+            values = [x['text_value'] for x in search_result]
+            print('top records found:')
+            top_ten = zip(search_result.items(), values)
+            for item in top_ten:
+                print('*  ', item[0][1], item[1])
+            matched = [match[1].decode('utf-8') for x in search_result for match in x.matched_terms()]
+            if values:
+                return values[0], list(set(matched))
+            else:
+                return None, None
 
 def main():
     ix = get_index(config.INDEXDIR_PATH)  # get document index
 
-    # creating QueryParser
-    qp = QueryParser("text_value", schema=ix.schema, group=OrGroup.factory(1))
-    # we will use FuzzyTermPlugin if nothing was found with exact search
-    qp.add_plugin(FuzzyTermPlugin())
 
     # test_data = SENTENCES
     #test_data = get_test_data(config.TEST_DATA_CSV)
     test_data = [
+        ("red", ['red', 'chateau latour']),
+        ("i want red chateau lator", ['red', 'chateau latour']),
         ("cabernet sauvignon", ['cabernet sauvignon']),
         ("caubernet sauvignon", ['cabernet sauvignon']),
         ("cabernet savignon", ['cabernet sauvignon']),
@@ -172,32 +178,35 @@ def main():
         ("how are yoou", []),
         ("chateu meru lator", ['chateau latour']),
         ("chateau lator", ['chateau latour']),
-        ("blak opul", ['black opal'])
+        ("blak opul", ['black opal']),
+        ("want red caubernet sauvignon", ['cabernet sauvignon'])
     ]
     print()
     print()
     success = 0
     total = len(test_data)
+    magia_search = MagiaSearch(ix)
     for sentence, expected in test_data:
         orig_sentence = sentence
         print("Input sentence: {}".format(sentence))
         start_time = datetime.now()
-        with ix.searcher(weighting=scoring.PL2()) as s:
-            result = []
-            iteration = 0
-            while True:
-                iteration += 1
-                print("Iteration #{} ".format(iteration), end='')
-                item, terms = perform_search(s, ix.schema, sentence.lower())
-                if not item or item in result:
-                    print('No more items')
-                    break
-                result.append(item)
-                print(result)
-                for word in terms:
-                    # sentence = sentence.replace(word, '-------')
-                    sentence = fuzzy_replace(word, REPLACED, sentence)
-                print("Tokens left: {}".format(sentence))
+        result = []
+        iteration = 0
+        while True:
+            iteration += 1
+
+            item, terms = magia_search.perform_search(sentence)
+            #exact = magia_search.perform_exact_search(sentence)
+            #print('Exact:', exact)
+            if not item or item in result:
+                print('No more items')
+                break
+            result.append(item)
+            print("Iteration #{}: {} ".format(iteration, result))
+            for word in terms:
+                # sentence = sentence.replace(word, '-------')
+                sentence = fuzzy_replace(word, REPLACED, sentence)
+            print("Tokens left: {}".format(sentence))
 
         if len(result) > 1:
             final_result = []
