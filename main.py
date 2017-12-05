@@ -162,25 +162,30 @@ class MagiaSearch:
             else:
                 return None, None
 
-def main():
+def main(arg_sentence=None):
     ix = get_index(config.INDEXDIR_PATH)  # get document index
 
 
     # test_data = SENTENCES
     #test_data = get_test_data(config.TEST_DATA_CSV)
-    test_data = [
-        ("red", ['red', 'chateau latour']),
-        ("i want red chateau lator", ['red', 'chateau latour']),
-        ("cabernet sauvignon", ['cabernet sauvignon']),
-        ("caubernet sauvignon", ['cabernet sauvignon']),
-        ("cabernet savignon", ['cabernet sauvignon']),
-        ("caubernet sauvignon", ['cabernet sauvignon']),
-        ("how are yoou", []),
-        ("chateu meru lator", ['chateau latour']),
-        ("chateau lator", ['chateau latour']),
-        ("blak opul", ['black opal']),
-        ("want red caubernet sauvignon", ['cabernet sauvignon'])
-    ]
+    if arg_sentence:
+        test_data = [(arg_sentence, [])]
+    else:
+        test_data = [
+            ("latour", [])
+            #("red latour", ['red', 'chateau latour']),
+            #("red", ['red', 'chateau latour']),
+            #("i want red chateau lator", ['red', 'chateau latour']),
+            #("cabernet sauvignon", ['cabernet sauvignon']),
+            #("caubernet sauvignon", ['cabernet sauvignon']),
+            #("cabernet savignon", ['cabernet sauvignon']),
+            #("caubernet sauvignon", ['cabernet sauvignon']),
+            #("how are yoou", []),
+            #("chateu meru lator", ['chateau latour']),
+            #("chateau lator", ['chateau latour']),
+            #("blak opul", ['black opal']),
+           # ("want red caubernet sauvignon", ['cabernet sauvignon'])
+        ]
     print()
     print()
     success = 0
@@ -234,4 +239,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import plac
+    plac.call(main)
