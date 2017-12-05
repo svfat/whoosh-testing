@@ -4,12 +4,14 @@ import json
 from datetime import datetime
 import csv
 import ast
+import sys
 
 import whoosh.index as index
 from whoosh.qparser import QueryParser, OrGroup, FuzzyTermPlugin, AndMaybeGroup
 from whoosh import query
 from whoosh.query import Query, Term, Or, And, FuzzyTerm, Phrase
 from whoosh import fields
+from whoosh.analysis import StandardAnalyzer
 from whoosh import scoring
 from whoosh.analysis import StemmingAnalyzer
 
@@ -58,7 +60,7 @@ def create_index(directory):
     """
     print('Generating index in {}'.format(directory))
     # schema = Schema(text_value=TEXT(stored=True), attribute_code=TEXT(stored=True))
-    schema = fields.Schema(text_value=fields.TEXT(stored=True),
+    schema = fields.Schema(text_value=fields.TEXT(stored=True, analyzer=StandardAnalyzer(minsize=1)),
                            text_value_ngram=fields.NGRAMWORDS(stored=True),
                            attribute_code=fields.TEXT(stored=True))
     create_dir(directory)
@@ -150,19 +152,23 @@ class MagiaSearch:
             q = exact_and_match | exact_or_match | fuzzy_or_match
             #q = exact_and_match
             print(q)
-            search_result = s.search(q, terms=True, limit=10)
+            search_result = self.get_search_result(s, q)
             values = [x['text_value'] for x in search_result]
-            print('top records found:')
-            top_ten = zip(search_result.items(), values)
-            for item in top_ten:
-                print('*  ', item[0][1], item[1])
             matched = [match[1].decode('utf-8') for x in search_result for match in x.matched_terms()]
             if values:
                 return values[0], list(set(matched))
             else:
                 return None, None
 
-def main(arg_sentence=None):
+    def get_search_result(self, searcher, query):
+        search_result = searcher.search(query, terms=True, limit=10)
+        print('top records found:')
+        top_ten = zip(search_result.items(), [x['text_value'] for x in search_result])
+        for item in top_ten:
+            print('*  ', item[0][1], item[1])
+        return search_result
+
+def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
     ix = get_index(config.INDEXDIR_PATH)  # get document index
 
 
@@ -191,6 +197,14 @@ def main(arg_sentence=None):
     success = 0
     total = len(test_data)
     magia_search = MagiaSearch(ix)
+    if query:
+        with magia_search._searcher() as s:
+            qp = QueryParser("text_value", schema=magia_search._schema)
+            qp.add_plugin(FuzzyTermPlugin)
+            q = qp.parse(query)
+            magia_search.get_search_result(s, q)
+            sys.exit()
+
     for sentence, expected in test_data:
         orig_sentence = sentence
         print("Input sentence: {}".format(sentence))
