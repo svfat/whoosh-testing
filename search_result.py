@@ -33,15 +33,26 @@ class SearchResult:
     def matched(self):
         return self._matched
 
+    def idf(self, searcher, text):
+        """Returns the inverse document frequency of the given term.
+        """
+        from math import log
+        parent = searcher.get_parent()
+        n = parent.doc_frequency(self._field_name, text)
+        dc = parent.doc_count_all()
+        return log(dc / (n + 1)) + 1
+
     def _calculate_score(self):
         #all_tokens_matched = all([token in self.matched for token in self.tokens])
         #if all_tokens_matched:
         #    return 100
         not_matched_tokens = list(set([token for token in self.tokens if token not in self.matched]))
         with self._ix.searcher() as s:
-            sum_not_matched = sum([s.frequency(self._field_name, token) for token in not_matched_tokens])
+            #sum_not_matched = sum([s.frequency(self._field_name, token) for token in not_matched_tokens])
+            sum_not_matched = sum([self.idf(s, token) for token in not_matched_tokens])
         score = self._initial_score - sum_not_matched / len(not_matched_tokens)
-        return score * -1
+        #return score * -1
+        return score
 
     def items(self):
         return self.score, self.text, self.matched
