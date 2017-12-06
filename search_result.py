@@ -1,4 +1,11 @@
 from whoosh.analysis import StandardAnalyzer
+from collections import Counter
+
+def compute_tf(text):
+    tf_text = Counter(text)
+    for i in tf_text:
+        tf_text[i] = tf_text[i]/float(len(text))
+    return tf_text
 
 class SearchResult:
     def __init__(self, text, matched, ix, field_name, initial_score=0):
@@ -8,8 +15,9 @@ class SearchResult:
         self._analyzer = StandardAnalyzer()
         self._ix = ix
         self._field_name = field_name
-
+        self._tf = compute_tf(self.tokens)
         self._score = self._calculate_score()
+
 
     def __str__(self):
         return self.text
@@ -42,6 +50,9 @@ class SearchResult:
         dc = parent.doc_count_all()
         return log(dc / (n + 1)) + 1
 
+    def tf(self, token):
+        return self._tf[token]
+
     def _calculate_score(self):
         #all_tokens_matched = all([token in self.matched for token in self.tokens])
         #if all_tokens_matched:
@@ -49,7 +60,7 @@ class SearchResult:
         not_matched_tokens = list(set([token for token in self.tokens if token not in self.matched]))
         with self._ix.searcher() as s:
             #sum_not_matched = sum([s.frequency(self._field_name, token) for token in not_matched_tokens])
-            sum_not_matched = sum([self.idf(s, token) for token in not_matched_tokens])
+            sum_not_matched = sum([self.tf(token)*self.idf(s, token) for token in not_matched_tokens])
         score = self._initial_score - sum_not_matched / len(not_matched_tokens)
         #return score * -1
         return score
