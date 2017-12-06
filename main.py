@@ -1,26 +1,20 @@
 #!/usr/bin/env python
-import os
-import json
-from datetime import datetime
-import csv
 import ast
+import csv
+import os
 import sys
+from datetime import datetime
 
 import whoosh.index as index
-from whoosh.qparser import QueryParser, OrGroup, FuzzyTermPlugin, AndMaybeGroup
-from whoosh import query
-from whoosh.query import Query, Term, Or, And, FuzzyTerm, Phrase
+from colorama import init, Fore, Back, Style
+from fuzzywuzzy import fuzz
 from whoosh import fields
 from whoosh.analysis import StandardAnalyzer
-from whoosh import scoring
-from whoosh.analysis import StemmingAnalyzer
+from whoosh.qparser import QueryParser, FuzzyTermPlugin
+from whoosh.query import Query, Term, Or, And, FuzzyTerm
 
 import config
-from data import SENTENCES
-
-from fuzzywuzzy import fuzz
-
-from colorama import init, Fore, Back, Style
+from search_result import SearchResult
 
 init()
 
@@ -135,6 +129,7 @@ def find_ngrams(l: list, n: int):
 
 class MagiaSearch:
     def __init__(self, index):
+        self._index = index
         self._searcher = index.searcher
         self._schema = index.schema
 
@@ -145,52 +140,64 @@ class MagiaSearch:
             f = 'text_value'
             exact_and_match = And([Term(f, token) for token in tokens], boost=4)
             exact_or_match = Or([Term(f, token) for token in tokens], boost=2, scale=0.9)
-            fuzzy_or_match = Or([FuzzyTerm(f, token, prefixlength=2) for token in tokens if len(token) >= 4], boost=1, scale=0.9)
-            #q = exact_and_match \
-                # | exact_or_match \
-                # | fuzzy_or_match
+            fuzzy_or_match = Or([FuzzyTerm(f, token, prefixlength=2) for token in tokens if len(token) >= 4], boost=1,
+                                scale=0.9)
+            # q = exact_and_match \
+            # | exact_or_match \
+            # | fuzzy_or_match
             q = exact_and_match | exact_or_match | fuzzy_or_match
-            #q = exact_and_match
+            # q = exact_and_match
             print(q)
-            search_result = self.get_search_result(s, q)
-            values = [x['text_value'] for x in search_result]
-            matched = [match[1].decode('utf-8') for x in search_result for match in x.matched_terms()]
-            if values:
-                return values[0], list(set(matched))
+            search_results = self.get_search_results(self._index, f, s, q)
+
+            for x in search_results:
+                print(x, x.score)
+
+            if search_results:
+                score, text, matched = search_results[0].items()
+                return text, list(set(matched))
             else:
                 return None, None
 
-    def get_search_result(self, searcher, query):
-        search_result = searcher.search(query, terms=True, limit=10)
+    def get_search_results(self, ix, field_name, searcher, query):
+        n = 10
+        search_results = searcher.search(query, terms=True, limit=n)
         print('top records found:')
-        top_ten = zip(search_result.items(), [x['text_value'] for x in search_result])
-        for item in top_ten:
-            print('*  ', item[0][1], item[1])
-        return search_result
+        top_n = list(zip(search_results.items(), [(hit[field_name], hit.matched_terms()) for hit in search_results]))
+        result = []
+        for doc_score, hit in top_n:
+            result.append(SearchResult(initial_score=doc_score[1],
+                                       text=hit[0],
+                                       ix=ix,
+                                       field_name=field_name,
+                                       matched=[x[1] for x in hit[1]]))
+        result = list(sorted(result, key=lambda x: x.score, reverse=True))
+
+        return result
+
 
 def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
     ix = get_index(config.INDEXDIR_PATH)  # get document index
 
-
     # test_data = SENTENCES
-    #test_data = get_test_data(config.TEST_DATA_CSV)
+    # test_data = get_test_data(config.TEST_DATA_CSV)
     if arg_sentence:
         test_data = [(arg_sentence, [])]
     else:
         test_data = [
-            ("latour", [])
-            #("red latour", ['red', 'chateau latour']),
-            #("red", ['red', 'chateau latour']),
-            #("i want red chateau lator", ['red', 'chateau latour']),
-            #("cabernet sauvignon", ['cabernet sauvignon']),
-            #("caubernet sauvignon", ['cabernet sauvignon']),
-            #("cabernet savignon", ['cabernet sauvignon']),
-            #("caubernet sauvignon", ['cabernet sauvignon']),
-            #("how are yoou", []),
-            #("chateu meru lator", ['chateau latour']),
-            #("chateau lator", ['chateau latour']),
-            #("blak opul", ['black opal']),
-           # ("want red caubernet sauvignon", ['cabernet sauvignon'])
+            ("latour", []),
+            ("red chateu latour", ['red', 'chateau latour']),
+            ("red", ['red', 'chateau latour']),
+            ("i want red chateau lator", ['red', 'chateau latour']),
+            ("cabernet sauvignon", ['cabernet sauvignon']),
+            ("caubernet sauvignon", ['cabernet sauvignon']),
+            ("cabernet savignon", ['cabernet sauvignon']),
+            ("caubernet sauvignon", ['cabernet sauvignon']),
+            ("how are yoou", []),
+            ("chateu meru lator", ['chateau latour']),
+            ("chateau lator", ['chateau latour']),
+            ("blak opul", ['black opal']),
+            ("want red caubernet sauvignon", ['cabernet sauvignon'])
         ]
     print()
     print()
@@ -215,8 +222,8 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
             iteration += 1
 
             item, terms = magia_search.perform_search(sentence)
-            #exact = magia_search.perform_exact_search(sentence)
-            #print('Exact:', exact)
+            # exact = magia_search.perform_exact_search(sentence)
+            # print('Exact:', exact)
             if not item or item in result:
                 print('No more items')
                 break
@@ -238,6 +245,8 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
                         final_result.append(token1)
             result = final_result
 
+        result = list(set(result))
+
         if sorted(result) == sorted(expected):
             success += 1
             cprint('Success', foreground="green", background="black")
@@ -254,4 +263,5 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
 
 if __name__ == "__main__":
     import plac
+
     plac.call(main)
