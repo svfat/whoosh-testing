@@ -34,7 +34,6 @@ class SearchResult:
         return self._matched
 
     def _calculate_score(self):
-        N = 0.1
         #all_tokens_matched = all([token in self.matched for token in self.tokens])
         #if all_tokens_matched:
         #    return 100
