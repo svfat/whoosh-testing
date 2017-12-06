@@ -34,15 +34,15 @@ class SearchResult:
         return self._matched
 
     def _calculate_score(self):
-        all_tokens_matched = all([token in self.matched for token in self.tokens])
-        if all_tokens_matched:
-            return 100
+        N = 0.1
+        #all_tokens_matched = all([token in self.matched for token in self.tokens])
+        #if all_tokens_matched:
+        #    return 100
         not_matched_tokens = list(set([token for token in self.tokens if token not in self.matched]))
         with self._ix.searcher() as s:
-            product = 1
-            for token in not_matched_tokens:
-                product *= s.frequency(self._field_name, token)
-        return product / len(not_matched_tokens)
+            sum_not_matched = sum([s.frequency(self._field_name, token) for token in not_matched_tokens])
+        score = self._initial_score - sum_not_matched / len(not_matched_tokens)
+        return score * -1
 
     def items(self):
         return self.score, self.text, self.matched

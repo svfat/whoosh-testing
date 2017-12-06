@@ -187,7 +187,7 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
         test_data = [
             ("latour", []),
             ("red chateu latour", ['red', 'chateau latour']),
-            ("red", ['red', 'chateau latour']),
+            ("red", ['red']),
             ("i want red chateau lator", ['red', 'chateau latour']),
             ("cabernet sauvignon", ['cabernet sauvignon']),
             ("caubernet sauvignon", ['cabernet sauvignon']),
