@@ -100,4 +100,11 @@ ENV/
 # mypy
 .mypy_cache/
 
+<<<<<<< HEAD
 .idea/workspace.xml
+=======
+
+# idea
+.idea/
+indexdir/
+>>>>>>> master

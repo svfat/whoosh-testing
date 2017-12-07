@@ -1,44 +1,56 @@
-#!/usr/bin/env python
-import sys
-<<<<<<< HEAD
-from datetime import datetime
+import ast
+import csv
+import os
+import re
 
 import whoosh.index as index
-from colorama import init, Fore, Back, Style
+
 from fuzzywuzzy import fuzz
-from whoosh import fields, scoring
+from whoosh import fields
 from whoosh.analysis import StandardAnalyzer
-=======
-import whoosh
-from whoosh import scoring, query
->>>>>>> master
-from whoosh.qparser import QueryParser, FuzzyTermPlugin
-from whoosh.query import Query
-from datetime import datetime
+from whoosh.query import Term, Or, And, FuzzyTerm
 
-from colorama import Fore, Back, Style, init as colorama_init
-from lookup_attributes import lookup_attributes, magia_search
-from lookup_attributes.search import ix
+import config
+from lookup_attributes.search_result import SearchResult
+from lookup_attributes.stopwords import STOPWORDS
 
-colorama_init()
+REPLACED = '------'
 
-def cprint(msg, foreground="black", background="white"):
-    fground = foreground.upper()
-    bground = background.upper()
-    style = getattr(Fore, fground) + getattr(Back, bground)
-    print(style + msg + Style.RESET_ALL)
+SCHEMA = fields.Schema(text_value=fields.TEXT(stored=True,
+                                              analyzer=StandardAnalyzer(minsize=1, stoplist=STOPWORDS)),
+                       text_value_ngram=fields.NGRAMWORDS(stored=True),
+                       attribute_code=fields.ID(stored=True),
+                       node_id=fields.ID(stored=True))
 
-<<<<<<< HEAD
 
-def fuzzy_replace(str_a, str_b, orig_str):
+def fast_replace_single_token(token, stub, orig_str):
+    return re.sub(r"\b{}\b".format(token), stub, orig_str)
+
+
+def fuzzy_replace(str_a, stub, orig_str):
+    """
+    search for exact dictionary term in query.
+    If not found, search for fuzzy term with distance < X (or some factor if using fuzzywuzzy).
+
+    TODO:
+    If not found, search for each exact individual terms from query results. If any remaining,
+    search for fuzzywuzzy individual terms from query results
+    """
+
+    RATIO = 74
+
     l = len(str_a.split())  # Length to read orig_str chunk by chunk
-    splitted = orig_str.split()
+    splitted = [t for t in orig_str.split() if t != stub]
+    if l == 1 and str_a in orig_str:
+        # only one word there
+        return fast_replace_single_token(str_a, stub, orig_str)
+
     for i in range(len(splitted) - l + 1):
         test = " ".join(splitted[i:i + l])
-        if fuzz.ratio(str_a, test) > 75:  # Using fuzzwuzzy library to test ratio
+        if fuzz.ratio(str_a, test) > RATIO:  # Using fuzzwuzzy library to test ratio
             before = " ".join(splitted[:i])
             after = " ".join(splitted[i + 1:])
-            return before + " " + str_b + " " + after
+            return before + " " + stub + " " + after
     return orig_str
 
 
@@ -55,11 +67,7 @@ def create_index(directory):
     Generate Whoosh index from text file
     """
     print('Generating index in {}'.format(directory))
-    # schema = Schema(text_value=TEXT(stored=True), attribute_code=TEXT(stored=True))
-    schema = fields.Schema(text_value=fields.TEXT(stored=True,
-                           analyzer=StandardAnalyzer(minsize=1)),
-                           text_value_ngram=fields.NGRAMWORDS(stored=True),
-                           attribute_code=fields.TEXT(stored=True))
+    schema = SCHEMA
     create_dir(directory)
     ix = index.create_in(directory, schema)
     writer = ix.writer()
@@ -73,7 +81,8 @@ def create_index(directory):
             if text_value:
                 writer.add_document(text_value=text_value,
                                     text_value_ngram=text_value,
-                                    attribute_code=row['attribute_code'])
+                                    attribute_code=row['attribute_code'],)
+                                    #node_id=row['node_id']) # TODO add node_id to source table
                 total += 1
     print('Writing {} records...'.format(total))
     writer.commit()
@@ -150,8 +159,6 @@ class MagiaSearch:
             # | fuzzy_or_match
             q = exact_and_match | exact_or_match | fuzzy_or_match
 
-
-
             my_match = Or([Term(f, token) for token in tokens], boost=1)
 
             # my_fuzzy_or_match = Or([FuzzyTerm(f, token, prefixlength=2) for token in tokens if len(token) >= 3], boost=1.0,
@@ -189,70 +196,34 @@ class MagiaSearch:
         return result
 
 
-=======
->>>>>>> master
-def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
-    # test_data = SENTENCES
-    # test_data = get_test_data(config.TEST_DATA_CSV)
-    if arg_sentence:
-        test_data = [(arg_sentence, [])]
-    else:
-        test_data = [
-            ("Do you have something like the 2005 Zinfandel of Turley?".lower(), []),
-            ("latour", ['chateau latour']),
-            ("red chateu latour", ['red', 'chateau latour']),
-            ("red", ['red']),
-            ("i want red chateau lator", ['red', 'chateau latour']),
-            ("cabernet sauvignon", ['cabernet sauvignon']),
-            ("caubernet sauvignon", ['cabernet sauvignon']),
-            ("cabernet savignon", ['cabernet sauvignon']),
-            ("caubernet sauvignon", ['cabernet sauvignon']),
-            ("how are yoou", []),
-            ("chateu meru lator", ['chateau latour']),
-            ("chateau lator", ['chateau latour']),
-            ("blak opul", ['black opal']),
-            ("want red caubernet sauvignon", ['red', 'cabernet sauvignon'])
-        ]
-    print()
-    print()
-    success = 0
-    total = len(test_data)
-
-    if query:
-<<<<<<< HEAD
-        with magia_search._searcher(weighting=scoring.BM25F()) as s:
-=======
-        with magia_search._searcher(weighting=  scoring.BM25F()) as s:
->>>>>>> master
-            qp = QueryParser("text_value", schema=magia_search._schema)
-            qp.add_plugin(FuzzyTermPlugin)
-            q = qp.parse(query)
-            magia_search.get_search_results(ix, "text_value", s, q)
-            sys.exit()
-
-    for sentence, expected in test_data:
-        orig_sentence = sentence
-        print("Input sentence: {}".format(sentence))
-        start_time = datetime.now()
-        result = []
-        iteration = 0
-        result = lookup_attributes(sentence)
-
-        if sorted(result) == sorted(expected):
-            success += 1
-            cprint('Success', foreground="green", background="black")
-        else:
-            cprint('Fail', foreground="red", background="black")
-
-        print('Completed in {}'.format(datetime.now() - start_time))
-        print('Expected', expected)
-        print('Got:', result)
-        print('--------------')
-        print()
-    print("{}/{} tests passed. {}%".format(success, total, success * 100 // total))
+ix = get_index(config.INDEXDIR_PATH)  # get document index
+magia_search = MagiaSearch(ix)
 
 
-if __name__ == "__main__":
-    import plac
+def lookup_attributes(sentence):
+    attributes = []
+    i = 0
+    while sentence:
+        i += 1
+        attr, terms = magia_search.perform_search(sentence)
+        if not attr or attr in attributes:
+            print('No more attributes')
+            break
+        attributes.append(attr)
+        print("Current iteration result: {} ".format(attributes))
+        for word in terms:
+            # sentence = sentence.replace(word, '-------')
+            sentence = fuzzy_replace(word, REPLACED, sentence)
+        print("Tokens left: {}".format(sentence))
 
-    plac.call(main)
+    if len(attributes) > 1:
+        final_result = []
+        for token1 in attributes:
+            second_list = [t for t in attributes if t != token1]
+            for token2 in second_list:
+                if token1 in token2:
+                    continue
+                else:
+                    final_result.append(token1)
+        attributes = final_result
+    return list(set(attributes))

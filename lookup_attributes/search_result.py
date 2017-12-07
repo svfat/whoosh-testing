@@ -1,6 +1,8 @@
 from whoosh.analysis import StandardAnalyzer
 from collections import Counter
 
+from .stopwords import STOPWORDS
+
 def compute_tf(text):
     tf_text = Counter(text)
     for i in tf_text:
@@ -12,7 +14,7 @@ class SearchResult:
         self._text = text
         self._matched = matched
         self._initial_score = initial_score
-        self._analyzer = StandardAnalyzer()
+        self._analyzer = StandardAnalyzer(minsize=1, stoplist=STOPWORDS)
         self._ix = ix
         self._field_name = field_name
         self._tf = compute_tf(self.tokens)
@@ -39,7 +41,7 @@ class SearchResult:
 
     @property
     def matched(self):
-        return self._matched
+        return [m.decode('utf-8') for m in self._matched]
 
     def idf(self, searcher, text):
         """Returns the inverse document frequency of the given term.
