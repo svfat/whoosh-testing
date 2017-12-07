@@ -8,7 +8,7 @@ from datetime import datetime
 import whoosh.index as index
 from colorama import init, Fore, Back, Style
 from fuzzywuzzy import fuzz
-from whoosh import fields
+from whoosh import fields, scoring
 from whoosh.analysis import StandardAnalyzer
 from whoosh.qparser import QueryParser, FuzzyTermPlugin
 from whoosh.query import Query, Term, Or, And, FuzzyTerm
@@ -54,7 +54,8 @@ def create_index(directory):
     """
     print('Generating index in {}'.format(directory))
     # schema = Schema(text_value=TEXT(stored=True), attribute_code=TEXT(stored=True))
-    schema = fields.Schema(text_value=fields.TEXT(stored=True, analyzer=StandardAnalyzer(minsize=1)),
+    schema = fields.Schema(text_value=fields.TEXT(stored=True,
+                           analyzer=StandardAnalyzer(minsize=1)),
                            text_value_ngram=fields.NGRAMWORDS(stored=True),
                            attribute_code=fields.TEXT(stored=True))
     create_dir(directory)
@@ -138,14 +139,24 @@ class MagiaSearch:
             tokens = sentence.split()
             tokens = [token for token in tokens if token != REPLACED]
             f = 'text_value'
-            exact_and_match = And([Term(f, token) for token in tokens], boost=4)
-            exact_or_match = Or([Term(f, token) for token in tokens], boost=2, scale=0.9)
-            fuzzy_or_match = Or([FuzzyTerm(f, token, prefixlength=2) for token in tokens if len(token) >= 4], boost=1,
+            exact_and_match = And([Term(f, token) for token in tokens], boost=.45)
+            exact_or_match = Or([Term(f, token) for token in tokens], boost=.45, scale=0.9)
+            fuzzy_or_match = Or([FuzzyTerm(f, token, prefixlength=2) for token in tokens if len(token) >= 4], boost=.1,
                                 scale=0.9)
             # q = exact_and_match \
             # | exact_or_match \
             # | fuzzy_or_match
             q = exact_and_match | exact_or_match | fuzzy_or_match
+
+
+
+            my_match = Or([Term(f, token) for token in tokens], boost=1)
+
+            # my_fuzzy_or_match = Or([FuzzyTerm(f, token, prefixlength=2) for token in tokens if len(token) >= 3], boost=1.0,
+            #                    scale=0.9)
+            # q = my_match
+
+
             # q = exact_and_match
             print(q)
             search_results = self.get_search_results(self._index, f, s, q)
@@ -205,7 +216,7 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
     total = len(test_data)
     magia_search = MagiaSearch(ix)
     if query:
-        with magia_search._searcher() as s:
+        with magia_search._searcher(weighting=scoring.BM25F()) as s:
             qp = QueryParser("text_value", schema=magia_search._schema)
             qp.add_plugin(FuzzyTermPlugin)
             q = qp.parse(query)
