@@ -46,7 +46,7 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
     total = len(test_data)
 
     if query:
-        with magia_search._searcher(weighting=  scoring.BM25F()) as s:
+        with magia_search._searcher(weighting=  scoring.TF_IDF()) as s:
             qp = QueryParser("text_value", schema=magia_search._schema)
             qp.add_plugin(FuzzyTermPlugin)
             q = qp.parse(query)

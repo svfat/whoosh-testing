@@ -19,8 +19,8 @@ REPLACED = '------'
 SCHEMA = fields.Schema(text_value=fields.TEXT(stored=True,
                                               analyzer=StandardAnalyzer(minsize=1, stoplist=STOPWORDS)),
                        text_value_ngram=fields.NGRAMWORDS(stored=True),
-                       attribute_code=fields.ID(stored=True),
-                       node_id=fields.ID(stored=True))
+                       attribute_code=fields.STORED,
+                       node_id=fields.STORED)
 
 
 def fast_replace_single_token(token, stub, orig_str):
@@ -180,7 +180,7 @@ class MagiaSearch:
                 return None, None
 
     def get_search_results(self, ix, field_name, searcher, query):
-        n = 10
+        n = 16
         search_results = searcher.search(query, terms=True, limit=n)
         print('top records found:')
         top_n = list(zip(search_results.items(), [(hit[field_name], hit.matched_terms()) for hit in search_results]))
