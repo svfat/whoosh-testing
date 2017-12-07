@@ -12,11 +12,12 @@ from whoosh.query import Term, Or, And, FuzzyTerm
 
 import config
 from lookup_attributes.search_result import SearchResult
+from lookup_attributes.stopwords import STOPWORDS
 
 REPLACED = '------'
 
 SCHEMA = fields.Schema(text_value=fields.TEXT(stored=True,
-                                              analyzer=StandardAnalyzer(minsize=1)),
+                                              analyzer=StandardAnalyzer(minsize=1, stoplist=STOPWORDS)),
                        text_value_ngram=fields.NGRAMWORDS(stored=True),
                        attribute_code=fields.ID(stored=True),
                        node_id=fields.ID(stored=True))
@@ -27,6 +28,15 @@ def fast_replace_single_token(token, stub, orig_str):
 
 
 def fuzzy_replace(str_a, stub, orig_str):
+    """
+    search for exact dictionary term in query.
+    If not found, search for fuzzy term with distance < X (or some factor if using fuzzywuzzy).
+
+    TODO:
+    If not found, search for each exact individual terms from query results. If any remaining,
+    search for fuzzywuzzy individual terms from query results
+    """
+
     RATIO = 74
 
     l = len(str_a.split())  # Length to read orig_str chunk by chunk
