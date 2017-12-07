@@ -17,7 +17,7 @@ from lookup_attributes.stopwords import STOPWORDS
 REPLACED = '------'
 
 SCHEMA = fields.Schema(text_value=fields.TEXT(stored=True,
-                                              analyzer=StandardAnalyzer(minsize=1, stoplist=STOPWORDS)),
+                                              analyzer=StandardAnalyzer(minsize=1)),
                        text_value_ngram=fields.NGRAMWORDS(stored=True),
                        attribute_code=fields.STORED,
                        node_id=fields.STORED)
@@ -78,11 +78,11 @@ def create_index(directory):
             if not i % 10000:
                 print(i)
             text_value = row['text_value'].lower().strip()
-            if text_value:
+            if text_value and row.get('entity_type', None) in ['node', None]:
                 writer.add_document(text_value=text_value,
-                                    text_value_ngram=text_value,
-                                    attribute_code=row['attribute_code'],)
-                                    #node_id=row['node_id']) # TODO add node_id to source table
+                                    # text_value_ngram=text_value,
+                                    attribute_code=row['attribute_code'],
+                                    node_id=row['entity_id']) # TODO add node_id to source table
                 total += 1
     print('Writing {} records...'.format(total))
     writer.commit()
@@ -160,10 +160,11 @@ class MagiaSearch:
             q = exact_and_match | exact_or_match | fuzzy_or_match
 
             my_match = Or([Term(f, token) for token in tokens], boost=1)
+            q = my_match
 
             # my_fuzzy_or_match = Or([FuzzyTerm(f, token, prefixlength=2) for token in tokens if len(token) >= 3], boost=1.0,
             #                    scale=0.9)
-            # q = my_match
+
 
 
             # q = exact_and_match
@@ -180,7 +181,7 @@ class MagiaSearch:
                 return None, None
 
     def get_search_results(self, ix, field_name, searcher, query):
-        n = 16
+        n = 20
         search_results = searcher.search(query, terms=True, limit=n)
         print('top records found:')
         top_n = list(zip(search_results.items(), [(hit[field_name], hit.matched_terms()) for hit in search_results]))

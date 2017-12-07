@@ -67,15 +67,17 @@ class SearchResult:
         # print("not_matched_tokens=", not_matched_tokens)
         with self._ix.searcher() as s:
             #sum_not_matched = sum([s.frequency(self._field_name, token) for token in not_matched_tokens])
-            # maybe stopwords are being aggressively removed because 'red arts' only coming through as ['red']
-            sum_not_matched = sum([(1/len(doc_word_list))*self.idf(s, token) for token in not_matched_tokens])
+            # sum_not_matched = sum([self.tf(token)*self.idf(s, token) for token in not_matched_tokens])
+
+            # currently have to divide by len(doc_word_list) because not all tokens are showing
+            sum_not_matched = sum([1/len(doc_word_list)*self.idf(s, token) for token in not_matched_tokens])
 
         score = self._initial_score
         if not_matched_tokens:
             # score -= sum_not_matched / len(not_matched_tokens)
             score -= sum_not_matched
 
-        print("self.tokens=",self.tokens, " initial=",self._initial_score,  " sum_not_matches=", sum_not_matched," score=",score)
+        print(str(self), "  self.tokens=",self.tokens, " initial=",self._initial_score,  " sum_not_matches=", sum_not_matched," score=",score)
         #return score * -1
         return score
 
