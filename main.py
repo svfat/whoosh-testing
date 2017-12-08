@@ -39,9 +39,8 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
             ("cabernet savignon", ['cabernet sauvignon']),
             ("caubernet sauvignon", ['cabernet sauvignon']),
             ("how are yoou", []),
-            ("chateu meru lator", ['chateau latour']),
+            ("chateu meru lator", ['merus', 'chateau latour']),
             ("chateau lator", ['chateau latour']),
-
             ("blak opul", ['black opal']),
             ("red caubernet sauvignon", ['red', 'cabernet sauvignon'])
         ]
@@ -58,6 +57,7 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
             magia_search.get_search_results(ix, s, q)
             sys.exit()
 
+    failed = []
     for chunk, expected in test_data:
         orig_chunk = chunk
         print("Input chunk: {}".format(chunk))
@@ -69,6 +69,7 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
             cprint('Success', foreground="green", background="black")
         else:
             cprint('Fail', foreground="red", background="black")
+            failed.append((chunk, result, expected))
 
         print('Completed in {}'.format(datetime.now() - start_time))
         print('Expected', expected)
@@ -76,7 +77,11 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
         print('--------------')
         print()
     print("{}/{} tests passed. {}%".format(success, total, success * 100 // total))
-
+    if failed:
+        print()
+        cprint('Failed', foreground="red", background="black")
+        for chunk, result, expected in failed:
+            print('*IN: {} *OUT: {} *EXPECTED: {}'.format(chunk, result, expected))
 
 if __name__ == "__main__":
     import plac
