@@ -18,7 +18,7 @@ REPLACED = '------'
 
 SCHEMA = fields.Schema(text_value=fields.TEXT(stored=True,
                                               analyzer=StandardAnalyzer(minsize=1)),
-                       text_value_ngram=fields.NGRAMWORDS(stored=True),
+                       # text_value_ngram=fields.NGRAMWORDS(stored=True),
                        attribute_code=fields.STORED,
                        node_id=fields.STORED)
 
@@ -80,7 +80,7 @@ def create_index(directory):
             text_value = row['text_value'].lower().strip()
             if text_value and row.get('entity_type', None) in ['node', None]:
                 writer.add_document(text_value=text_value,
-                                    text_value_ngram=text_value,
+                                    # text_value_ngram=text_value,
                                     attribute_code=row['attribute_code'],
                                     node_id=row['entity_id']) # TODO add node_id to source table
                 total += 1
@@ -149,18 +149,19 @@ class MagiaSearch:
         with self._searcher() as s:
             tokens = sentence.split()
             tokens = [token for token in tokens if token != REPLACED]
+            print('tokens=',tokens)
             f = 'text_value'
-            exact_and_match = And([Term(f, token) for token in tokens], boost=.45)
-            exact_or_match = Or([Term(f, token) for token in tokens], boost=.45, scale=0.9)
-            fuzzy_or_match = Or([FuzzyTerm(f, token, prefixlength=2) for token in tokens if len(token) >= 4], boost=.1,
+            exact_and_match = And([Term(f, token) for token in tokens], boost=.5)
+            exact_or_match = Or([Term(f, token) for token in tokens], boost=.5, scale=0.9)
+            fuzzy_or_match = Or([FuzzyTerm(f, token) for token in tokens if len(token) >= 4], boost=.2,
                                 scale=0.9)
             # q = exact_and_match \
             # | exact_or_match \
             # | fuzzy_or_match
             q = exact_and_match | exact_or_match | fuzzy_or_match
 
-            my_match = Or([Term(f, token) for token in tokens], boost=1)
-            q = my_match
+            #my_match = Or([Term(f, token) for token in tokens], boost=1)
+            #q = my_match
 
             # my_fuzzy_or_match = Or([FuzzyTerm(f, token, prefixlength=2) for token in tokens if len(token) >= 3], boost=1.0,
             #                    scale=0.9)
