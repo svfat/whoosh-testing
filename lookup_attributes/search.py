@@ -151,9 +151,9 @@ class MagiaSearch:
             tokens = sentence.split()
             tokens = [token for token in tokens if token != REPLACED]
             print('tokens=', tokens)
-            exact_and_match = And([Term(TEXT_FIELD, token) for token in tokens], boost=.5)
-            exact_or_match = Or([Term(TEXT_FIELD, token) for token in tokens], boost=.5, scale=0.9)
-            fuzzy_or_match = Or([FuzzyTerm(TEXT_FIELD, token, prefixlength=2) for token in tokens if len(token) >= 4], boost=.2,
+            exact_and_match = And([Term(TEXT_FIELD, t) for t in tokens], boost=.5)
+            exact_or_match = Or([Term(TEXT_FIELD, t) for t in tokens], boost=.5, scale=0.9)
+            fuzzy_or_match = Or([FuzzyTerm(TEXT_FIELD, t, prefixlength=2) for t in tokens if len(t) >= 4], boost=.2,
                                 scale=0.9)
             if len(tokens) > 1:
                 # add bigrams if there are any
@@ -163,7 +163,7 @@ class MagiaSearch:
             else:
                 bigram_fuzzy_or_match = None
             # q = exact_and_match \
-            # | exact_or_match \
+            # | exact_or_match \ 
             # | fuzzy_or_match
 
             # my_match = Or([Term(f, token) for token in tokens], boost=1)
