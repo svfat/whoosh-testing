@@ -29,6 +29,7 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
     else:
         test_data = [
             # ("Do you have something like the 2005 Zinfandel of Turley?".lower(), []),
+            ("redd wine nappa chateau latoor", []),
             ("nappa valley", ['napa valley']),
             ("latour", ['chateau latour']),
             ("red chateu latour", ['red', 'chateau latour']),

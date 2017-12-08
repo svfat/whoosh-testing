@@ -2,6 +2,7 @@ from whoosh.analysis import StandardAnalyzer
 from collections import Counter
 
 from .field_names import TEXT_FIELD
+from .schema import analyzer
 
 # from .stopwords import STOPWORDS
 STOPWORDS = []
@@ -19,7 +20,6 @@ class SearchResult:
         self._text = text
         self._matched = matched
         self._initial_score = initial_score
-        self._analyzer = StandardAnalyzer(minsize=1, stoplist=None)
         self._ix = ix
         self._tf = compute_tf(self.tokens)
         self._score = self._calculate_score()
@@ -32,7 +32,7 @@ class SearchResult:
 
     @property
     def tokens(self):
-        return [t.text for t in self._analyzer(self.text)]
+        return [t.text for t in analyzer(self.text)]
 
     @property
     def score(self):

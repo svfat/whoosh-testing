@@ -5,26 +5,20 @@ import re
 
 import whoosh.index as index
 from fuzzywuzzy import fuzz
-from whoosh import fields
-from whoosh.analysis import StandardAnalyzer
+
 from whoosh.query import Term, Or, And, FuzzyTerm
 
 import config
 from .field_names import TEXT_FIELD, BIGRAMS_FIELD
 from .search_result import SearchResult
-
+from .schema import schema
 # from lookup_attributes.stopwords import STOPWORDS
 
 STOPWORDS = []
 
 REPLACED = '------'
 
-SCHEMA = fields.Schema(text_value=fields.TEXT(stored=True,
-                                              analyzer=StandardAnalyzer(minsize=1, stoplist=STOPWORDS)),
-                       word_bigrams=fields.TEXT(stored=True),
-                       # text_value_ngram=fields.NGRAMWORDS(stored=True),
-                       attribute_code=fields.STORED,
-                       node_id=fields.STORED)
+
 
 
 def fast_replace_single_token(token, stub, orig_str):
@@ -71,7 +65,6 @@ def create_index(directory):
     Generate Whoosh index from text file
     """
     print('Generating index in {}'.format(directory))
-    schema = SCHEMA
     create_dir(directory)
     ix = index.create_in(directory, schema)
     writer = ix.writer()
@@ -158,10 +151,9 @@ class MagiaSearch:
             tokens = sentence.split()
             tokens = [token for token in tokens if token != REPLACED]
             print('tokens=', tokens)
-            f = 'text_value'
-            exact_and_match = And([Term(f, token) for token in tokens], boost=.5)
-            exact_or_match = Or([Term(f, token) for token in tokens], boost=.5, scale=0.9)
-            fuzzy_or_match = Or([FuzzyTerm(f, token) for token in tokens if len(token) >= 4], boost=.2,
+            exact_and_match = And([Term(TEXT_FIELD, token) for token in tokens], boost=.5)
+            exact_or_match = Or([Term(TEXT_FIELD, token) for token in tokens], boost=.5, scale=0.9)
+            fuzzy_or_match = Or([FuzzyTerm(TEXT_FIELD, token, prefixlength=2) for token in tokens if len(token) >= 4], boost=.2,
                                 scale=0.9)
             if len(tokens) > 1:
                 # add bigrams if there are any
