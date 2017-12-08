@@ -4,22 +4,20 @@ import os
 import re
 
 import whoosh.index as index
-
 from fuzzywuzzy import fuzz
 from whoosh import fields
 from whoosh.analysis import StandardAnalyzer
-from whoosh.query import Term, Or, And, FuzzyTerm, SpanNear2
-
+from whoosh.query import Term, Or, And, FuzzyTerm
 
 import config
-from .search_result import SearchResult
 from .field_names import TEXT_FIELD, BIGRAMS_FIELD
-#from lookup_attributes.stopwords import STOPWORDS
+from .search_result import SearchResult
+
+# from lookup_attributes.stopwords import STOPWORDS
 
 STOPWORDS = []
 
 REPLACED = '------'
-
 
 SCHEMA = fields.Schema(text_value=fields.TEXT(stored=True,
                                               analyzer=StandardAnalyzer(minsize=1, stoplist=STOPWORDS)),
@@ -107,7 +105,7 @@ def get_index(directory):
     try:
         ix = index.open_dir(directory)
     except:
-        ix = create_index(directory)
+        create_index(directory)
         ix = index.open_dir(directory)
     return ix
 
@@ -159,7 +157,7 @@ class MagiaSearch:
         with self._searcher() as s:
             tokens = sentence.split()
             tokens = [token for token in tokens if token != REPLACED]
-            print('tokens=',tokens)
+            print('tokens=', tokens)
             f = 'text_value'
             exact_and_match = And([Term(f, token) for token in tokens], boost=.5)
             exact_or_match = Or([Term(f, token) for token in tokens], boost=.5, scale=0.9)
@@ -169,18 +167,18 @@ class MagiaSearch:
                 # add bigrams if there are any
                 bigrams = ['_'.join(b) for b in find_ngrams(tokens, 2)]
                 bigram_fuzzy_or_match = Or([FuzzyTerm(BIGRAMS_FIELD, b, prefixlength=2) for b in bigrams], boost=.2,
-                                scale=0.9)
+                                           scale=0.9)
             else:
                 bigram_fuzzy_or_match = None
             # q = exact_and_match \
             # | exact_or_match \
             # | fuzzy_or_match
 
-            #my_match = Or([Term(f, token) for token in tokens], boost=1)
-            #q = my_match
+            # my_match = Or([Term(f, token) for token in tokens], boost=1)
+            # q = my_match
 
             #
-            #q = Or([FuzzyTerm(f, token, prefixlength=2) for token in tokens if len(token) >= 3], boost=1.0,
+            # q = Or([FuzzyTerm(f, token, prefixlength=2) for token in tokens if len(token) >= 3], boost=1.0,
             #                    scale=0.9)
 
             q = exact_and_match | exact_or_match | fuzzy_or_match

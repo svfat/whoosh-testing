@@ -1,23 +1,25 @@
 #!/usr/bin/env python
 import sys
-import whoosh
-from whoosh import scoring, query
-from whoosh.qparser import QueryParser, FuzzyTermPlugin
-from whoosh.query import Query
 from datetime import datetime
 
 from colorama import Fore, Back, Style, init as colorama_init
+from whoosh import scoring
+from whoosh.qparser import QueryParser, FuzzyTermPlugin
+from whoosh.query import Query
+
 from lookup_attributes import lookup_attributes, magia_search
 from lookup_attributes.field_names import TEXT_FIELD
 from lookup_attributes.search import ix
 
 colorama_init()
 
+
 def cprint(msg, foreground="black", background="white"):
     fground = foreground.upper()
     bground = background.upper()
     style = getattr(Fore, fground) + getattr(Back, bground)
     print(style + msg + Style.RESET_ALL)
+
 
 def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
     # test_data = SENTENCES
@@ -26,7 +28,7 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
         test_data = [(arg_sentence, [])]
     else:
         test_data = [
-            #("Do you have something like the 2005 Zinfandel of Turley?".lower(), []),
+            # ("Do you have something like the 2005 Zinfandel of Turley?".lower(), []),
             ("nappa valley", ['napa valley']),
             ("latour", ['chateau latour']),
             ("red chateu latour", ['red', 'chateau latour']),
@@ -49,7 +51,7 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
     total = len(test_data)
 
     if query:
-        with magia_search._searcher(weighting=  scoring.TF_IDF()) as s:
+        with magia_search._searcher(weighting=scoring.TF_IDF()) as s:
             qp = QueryParser(TEXT_FIELD, schema=magia_search._schema)
             qp.add_plugin(FuzzyTermPlugin)
             q = qp.parse(query)
@@ -57,11 +59,9 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
             sys.exit()
 
     for chunk, expected in test_data:
-        orig_chunk= chunk
+        orig_chunk = chunk
         print("Input chunk: {}".format(chunk))
         start_time = datetime.now()
-        result = []
-        iteration = 0
         result = lookup_attributes(chunk)
 
         if sorted(result) == sorted(expected):
