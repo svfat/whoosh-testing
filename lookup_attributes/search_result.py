@@ -16,7 +16,7 @@ class SearchResult:
         self._text = text
         self._matched = matched
         self._initial_score = initial_score
-        self._analyzer = StandardAnalyzer(minsize=1, stoplist=STOPWORDS)
+        self._analyzer = StandardAnalyzer(minsize=1, stoplist=None)
         self._ix = ix
         self._tf = compute_tf(self.tokens)
         self._score = self._calculate_score()
@@ -62,8 +62,7 @@ class SearchResult:
         #    return 100
         # print("matched_tokens=",self.matched)
         # not_matched_tokens = list(set([token for token in self.tokens if token.encode() not in self.matched]))
-        doc_word_list = set(str(self).split())
-        not_matched_tokens = list(set([token for token in doc_word_list if token not in self.matched]))
+        not_matched_tokens = list(set([token for token in self.tokens if token not in self.matched]))
 
         # print("not_matched_tokens=", not_matched_tokens)
         with self._ix.searcher() as s:
@@ -71,7 +70,8 @@ class SearchResult:
             # sum_not_matched = sum([self.tf(token)*self.idf(s, token) for token in not_matched_tokens])
 
             # currently have to divide by len(doc_word_list) because not all tokens are showing
-            sum_not_matched = sum([1/len(doc_word_list)*self.idf(s, token) for token in not_matched_tokens])
+            # doc_word_list = set(str(self).replace('-', ' ').split())
+            sum_not_matched = sum([self.tf(token)*self.idf(s, token) for token in not_matched_tokens])
 
         score = self._initial_score
         if not_matched_tokens:
