@@ -80,7 +80,7 @@ def create_index(directory):
             text_value = row['text_value'].lower().strip()
             if text_value and row.get('entity_type', None) in ['node', None]:
                 writer.add_document(text_value=text_value,
-                                    # text_value_ngram=text_value,
+                                    text_value_ngram=text_value,
                                     attribute_code=row['attribute_code'],
                                     node_id=row['entity_id']) # TODO add node_id to source table
                 total += 1
