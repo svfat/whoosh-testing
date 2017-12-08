@@ -158,7 +158,7 @@ class MagiaSearch:
             if len(tokens) > 1:
                 # add bigrams if there are any
                 bigrams = ['_'.join(b) for b in find_ngrams(tokens, 2)]
-                bigram_fuzzy_or_match = Or([FuzzyTerm(BIGRAMS_FIELD, b, prefixlength=2) for b in bigrams], boost=.2,
+                bigram_fuzzy_or_match = Or([FuzzyTerm(BIGRAMS_FIELD, b, prefixlength=3, maxdist=3) for b in bigrams],
                                            scale=0.9)
             else:
                 bigram_fuzzy_or_match = None
