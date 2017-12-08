@@ -1,7 +1,9 @@
 from whoosh.analysis import StandardAnalyzer
 from collections import Counter
 
-from .stopwords import STOPWORDS
+from .field_names import TEXT_FIELD
+#from .stopwords import STOPWORDS
+STOPWORDS = []
 
 def compute_tf(text):
     tf_text = Counter(text)
@@ -10,13 +12,12 @@ def compute_tf(text):
     return tf_text
 
 class SearchResult:
-    def __init__(self, text, matched, ix, field_name, initial_score=0):
+    def __init__(self, text, matched, ix, initial_score=0):
         self._text = text
         self._matched = matched
         self._initial_score = initial_score
         self._analyzer = StandardAnalyzer(minsize=1, stoplist=STOPWORDS)
         self._ix = ix
-        self._field_name = field_name
         self._tf = compute_tf(self.tokens)
         self._score = self._calculate_score()
 
@@ -48,7 +49,7 @@ class SearchResult:
         """
         from math import log
         parent = searcher.get_parent()
-        n = parent.doc_frequency(self._field_name, text)
+        n = parent.doc_frequency(TEXT_FIELD, text)
         dc = parent.doc_count_all()
         return log(dc / (n + 1)) + 1
 

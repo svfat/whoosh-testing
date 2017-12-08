@@ -8,6 +8,7 @@ from datetime import datetime
 
 from colorama import Fore, Back, Style, init as colorama_init
 from lookup_attributes import lookup_attributes, magia_search
+from lookup_attributes.field_names import TEXT_FIELD
 from lookup_attributes.search import ix
 
 colorama_init()
@@ -25,11 +26,12 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
         test_data = [(arg_sentence, [])]
     else:
         test_data = [
-            ("Do you have something like the 2005 Zinfandel of Turley?".lower(), []),
+            #("Do you have something like the 2005 Zinfandel of Turley?".lower(), []),
+            ("nappa valley", ['napa valley']),
             ("latour", ['chateau latour']),
             ("red chateu latour", ['red', 'chateau latour']),
             ("red", ['red']),
-            ("i want red chateau lator", ['red', 'chateau latour']),
+            ("red chateau lator", ['red', 'chateau latour']),
             ("cabernet sauvignon", ['cabernet sauvignon']),
             ("caubernet sauvignon", ['cabernet sauvignon']),
             ("cabernet savignon", ['cabernet sauvignon']),
@@ -37,8 +39,9 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
             ("how are yoou", []),
             ("chateu meru lator", ['chateau latour']),
             ("chateau lator", ['chateau latour']),
+
             ("blak opul", ['black opal']),
-            ("want red caubernet sauvignon", ['red', 'cabernet sauvignon'])
+            ("red caubernet sauvignon", ['red', 'cabernet sauvignon'])
         ]
     print()
     print()
@@ -47,19 +50,19 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
 
     if query:
         with magia_search._searcher(weighting=  scoring.TF_IDF()) as s:
-            qp = QueryParser("text_value", schema=magia_search._schema)
+            qp = QueryParser(TEXT_FIELD, schema=magia_search._schema)
             qp.add_plugin(FuzzyTermPlugin)
             q = qp.parse(query)
-            magia_search.get_search_results(ix, "text_value", s, q)
+            magia_search.get_search_results(ix, s, q)
             sys.exit()
 
-    for sentence, expected in test_data:
-        orig_sentence = sentence
-        print("Input sentence: {}".format(sentence))
+    for chunk, expected in test_data:
+        orig_chunk= chunk
+        print("Input chunk: {}".format(chunk))
         start_time = datetime.now()
         result = []
         iteration = 0
-        result = lookup_attributes(sentence)
+        result = lookup_attributes(chunk)
 
         if sorted(result) == sorted(expected):
             success += 1

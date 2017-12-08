@@ -8,17 +8,22 @@ import whoosh.index as index
 from fuzzywuzzy import fuzz
 from whoosh import fields
 from whoosh.analysis import StandardAnalyzer
-from whoosh.query import Term, Or, And, FuzzyTerm
+from whoosh.query import Term, Or, And, FuzzyTerm, SpanNear2
+
 
 import config
-from lookup_attributes.search_result import SearchResult
-from lookup_attributes.stopwords import STOPWORDS
+from .search_result import SearchResult
+from .field_names import TEXT_FIELD, BIGRAMS_FIELD
+#from lookup_attributes.stopwords import STOPWORDS
+
+STOPWORDS = []
 
 REPLACED = '------'
 
+
 SCHEMA = fields.Schema(text_value=fields.TEXT(stored=True,
-                                              analyzer=StandardAnalyzer(minsize=1)),
-                       text_value_ngram=fields.NGRAMWORDS(stored=True),
+                                              analyzer=StandardAnalyzer(minsize=1, stoplist=STOPWORDS)),
+                       word_bigrams=fields.TEXT(stored=True),
                        attribute_code=fields.STORED,
                        node_id=fields.STORED)
 
@@ -78,9 +83,12 @@ def create_index(directory):
             if not i % 10000:
                 print(i)
             text_value = row['text_value'].lower().strip()
+            # TODO add StandartAnalyzer
+            bigrams = find_ngrams(text_value.split(), 2)
+            text_bigrams = ['_'.join(b) for b in bigrams]
             if text_value and row.get('entity_type', None) in ['node', None]:
                 writer.add_document(text_value=text_value,
-                                    text_value_ngram=text_value,
+                                    word_bigrams=text_bigrams,
                                     attribute_code=row['attribute_code'],
                                     node_id=row['entity_id']) # TODO add node_id to source table
                 total += 1
@@ -149,27 +157,35 @@ class MagiaSearch:
         with self._searcher() as s:
             tokens = sentence.split()
             tokens = [token for token in tokens if token != REPLACED]
-            f = 'text_value'
-            exact_and_match = And([Term(f, token) for token in tokens], boost=.45)
-            exact_or_match = Or([Term(f, token) for token in tokens], boost=.45, scale=0.9)
-            fuzzy_or_match = Or([FuzzyTerm(f, token, prefixlength=2) for token in tokens if len(token) >= 4], boost=.1,
+            exact_and_match = And([Term(TEXT_FIELD, token) for token in tokens], boost=.5)
+            exact_or_match = Or([Term(TEXT_FIELD, token) for token in tokens], boost=.5, scale=0.9)
+            fuzzy_or_match = Or([FuzzyTerm(TEXT_FIELD, token, prefixlength=2) for token in tokens if len(token) >= 4], boost=.2,
                                 scale=0.9)
+            if len(tokens) > 1:
+                # add bigrams if there are any
+                bigrams = ['_'.join(b) for b in find_ngrams(tokens, 2)]
+                bigram_fuzzy_or_match = Or([FuzzyTerm(BIGRAMS_FIELD, b, prefixlength=2) for b in bigrams], boost=.2,
+                                scale=0.9)
+            else:
+                bigram_fuzzy_or_match = None
             # q = exact_and_match \
             # | exact_or_match \
             # | fuzzy_or_match
-            q = exact_and_match | exact_or_match | fuzzy_or_match
 
-            my_match = Or([Term(f, token) for token in tokens], boost=1)
-            q = my_match
+            #my_match = Or([Term(f, token) for token in tokens], boost=1)
+            #q = my_match
 
-            # my_fuzzy_or_match = Or([FuzzyTerm(f, token, prefixlength=2) for token in tokens if len(token) >= 3], boost=1.0,
+            #
+            #q = Or([FuzzyTerm(f, token, prefixlength=2) for token in tokens if len(token) >= 3], boost=1.0,
             #                    scale=0.9)
 
+            q = exact_and_match | exact_or_match | fuzzy_or_match
 
+            if bigram_fuzzy_or_match:
+                q = q | bigram_fuzzy_or_match
 
-            # q = exact_and_match
             print(q)
-            search_results = self.get_search_results(self._index, f, s, q)
+            search_results = self.get_search_results(self._index, s, q)
 
             for x in search_results:
                 print(x, x.score)
@@ -180,17 +196,16 @@ class MagiaSearch:
             else:
                 return None, None
 
-    def get_search_results(self, ix, field_name, searcher, query):
+    def get_search_results(self, ix, searcher, query):
         n = 20
         search_results = searcher.search(query, terms=True, limit=n)
         print('top records found:')
-        top_n = list(zip(search_results.items(), [(hit[field_name], hit.matched_terms()) for hit in search_results]))
+        top_n = list(zip(search_results.items(), [(hit[TEXT_FIELD], hit.matched_terms()) for hit in search_results]))
         result = []
         for doc_score, hit in top_n:
             result.append(SearchResult(initial_score=doc_score[1],
                                        text=hit[0],
                                        ix=ix,
-                                       field_name=field_name,
                                        matched=[x[1] for x in hit[1]]))
         result = list(sorted(result, key=lambda x: x.score, reverse=True))
 
@@ -201,12 +216,16 @@ ix = get_index(config.INDEXDIR_PATH)  # get document index
 magia_search = MagiaSearch(ix)
 
 
-def lookup_attributes(sentence):
+def cleanup(chunk):
+    return chunk.lower()
+
+
+def lookup_attributes(chunk):
+    chunk = cleanup(chunk)
+
     attributes = []
-    i = 0
-    while sentence:
-        i += 1
-        attr, terms = magia_search.perform_search(sentence)
+    while chunk:
+        attr, terms = magia_search.perform_search(chunk)
         if not attr or attr in attributes:
             print('No more attributes')
             break
@@ -214,8 +233,8 @@ def lookup_attributes(sentence):
         print("Current iteration result: {} ".format(attributes))
         for word in terms:
             # sentence = sentence.replace(word, '-------')
-            sentence = fuzzy_replace(word, REPLACED, sentence)
-        print("Tokens left: {}".format(sentence))
+            chunk = fuzzy_replace(word, REPLACED, chunk)
+        print("Tokens left: {}".format(chunk))
 
     if len(attributes) > 1:
         final_result = []
