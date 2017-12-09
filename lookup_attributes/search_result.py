@@ -16,8 +16,9 @@ def compute_tf(text):
 
 
 class SearchResult:
-    def __init__(self, text, matched, ix, initial_score=0):
+    def __init__(self, text, attribute, matched, ix, initial_score=0):
         self._text = text
+        self._attribute = attribute
         self._matched = matched
         self._initial_score = initial_score
         self._ix = ix
@@ -75,7 +76,9 @@ class SearchResult:
             # doc_word_list = set(str(self).replace('-', ' ').split())
             sum_not_matched = sum([self.tf(token) * self.idf(s, token) for token in not_matched_tokens])
 
-        score = self._initial_score
+        # base_bonus = 1 if self._attribute == 'brand' else 2
+        base_bonus = 1
+        score = self._initial_score * base_bonus
         if not_matched_tokens:
             # score -= sum_not_matched / len(not_matched_tokens)
             score -= sum_not_matched

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import sys
+import re
 from datetime import datetime
 
 from colorama import Fore, Back, Style, init as colorama_init
@@ -10,6 +11,7 @@ from whoosh.query import Query
 from lookup_attributes import lookup_attributes, magia_search
 from lookup_attributes.field_names import TEXT_FIELD
 from lookup_attributes.search import ix
+from lookup_attributes.stopwords import STOPWORDS
 
 colorama_init()
 
@@ -19,6 +21,13 @@ def cprint(msg, foreground="black", background="white"):
     bground = background.upper()
     style = getattr(Fore, fground) + getattr(Back, bground)
     print(style + msg + Style.RESET_ALL)
+
+def remove_stopwords(sentence):
+    sentence = sentence.strip().lower()
+    for word in STOPWORDS:
+        sentence = re.sub(r'\b' + word + r'\b', '', sentence)
+    return sentence
+
 
 
 def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
@@ -63,7 +72,7 @@ def main(query: ("Query", 'option', 'q'), arg_sentence=None, ):
         orig_chunk = chunk
         print("Input chunk: {}".format(chunk))
         start_time = datetime.now()
-        result = lookup_attributes(chunk)
+        result = lookup_attributes(remove_stopwords(chunk))
 
         if sorted(result) == sorted(expected):
             success += 1

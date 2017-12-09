@@ -9,12 +9,11 @@ from fuzzywuzzy import fuzz
 from whoosh.query import Term, Or, And, FuzzyTerm
 
 import config
-from .field_names import TEXT_FIELD, BIGRAMS_FIELD
+from .field_names import TEXT_FIELD, BIGRAMS_FIELD, NONBRAND_TEXT_FIELD, ATTRIBUTE_FIELD
 from .search_result import SearchResult
 from .schema import schema
 # from lookup_attributes.stopwords import STOPWORDS
 
-STOPWORDS = []
 
 REPLACED = '------'
 
@@ -37,6 +36,7 @@ def fuzzy_replace(str_a, stub, orig_str):
 
     RATIO = 74
 
+    # str_a = str_a.replace('_', ' ') # bigrams
     l = len(str_a.split())  # Length to read orig_str chunk by chunk
     splitted = [t for t in orig_str.split() if t != stub]
     if l == 1 and str_a in orig_str:
@@ -78,11 +78,14 @@ def create_index(directory):
             # TODO add StandartAnalyzer
             bigrams = find_ngrams(text_value.split(), 2)
             text_bigrams = ['_'.join(b) for b in bigrams]
+            # if this is not a brand then add that also so we can give pref to non-brands
+            non_brand_text = text_value if row.get('attribute_code',None) != "brand" else None
             if text_value and row.get('entity_type', None) in ['node', None]:
                 writer.add_document(text_value=text_value,
                                     word_bigrams=text_bigrams,
+                                    non_brand_text_value=non_brand_text,
                                     attribute_code=row['attribute_code'],
-                                    # node_id=row['entity_id'] # TODO add node_id to source table
+                                    node_id=row['entity_id'] # TODO add node_id to source table
                                     )
                 total += 1
     print('Writing {} records...'.format(total))
@@ -130,7 +133,7 @@ def get_test_data(csv_file):
 
 def prepare_input_sentence(sentence):
     sentence = sentence.strip().lower()
-    stopwords = ['wines']
+    stopwords = []
     for word in stopwords:
         sentence = sentence.replace(word)
     return sentence
@@ -153,15 +156,21 @@ class MagiaSearch:
             print('tokens=', tokens)
             exact_and_match = And([Term(TEXT_FIELD, t) for t in tokens], boost=.5)
             exact_or_match = Or([Term(TEXT_FIELD, t) for t in tokens], boost=.5, scale=0.9)
-            fuzzy_or_match = Or([FuzzyTerm(TEXT_FIELD, t, prefixlength=2) for t in tokens if len(t) >= 4], boost=.2,
-                                scale=0.9)
+            # Added variability of maxdist based on word length
+            fuzzy_or_match = Or([FuzzyTerm(TEXT_FIELD, t, prefixlength=1, maxdist=1 if len(t) < 8 else 2)
+                                 for t in tokens if len(t) >= 4], boost=.2, scale=0.9)
             if len(tokens) > 1:
                 # add bigrams if there are any
                 bigrams = ['_'.join(b) for b in find_ngrams(tokens, 2)]
-                bigram_fuzzy_or_match = Or([FuzzyTerm(BIGRAMS_FIELD, b, prefixlength=3, maxdist=3) for b in bigrams],
-                                           scale=0.9)
+                bigram_fuzzy_or_match = Or([FuzzyTerm(BIGRAMS_FIELD, b, prefixlength=3,
+                                            maxdist=2 if len(b) < 8 else 3) for b in bigrams], scale=0.9)
             else:
                 bigram_fuzzy_or_match = None
+
+
+            non_brand_or_match = Or([Term(NONBRAND_TEXT_FIELD, t) for t in tokens])
+
+
             # q = exact_and_match \
             # | exact_or_match \ 
             # | fuzzy_or_match
@@ -173,7 +182,7 @@ class MagiaSearch:
             # q = Or([FuzzyTerm(f, token, prefixlength=2) for token in tokens if len(token) >= 3], boost=1.0,
             #                    scale=0.9)
 
-            q = exact_and_match | exact_or_match | fuzzy_or_match
+            q = exact_and_match | exact_or_match | fuzzy_or_match  | non_brand_or_match
 
             if bigram_fuzzy_or_match:
                 q = q | bigram_fuzzy_or_match
@@ -194,11 +203,13 @@ class MagiaSearch:
         n = 20
         search_results = searcher.search(query, terms=True, limit=n)
         print('top records found:')
-        top_n = list(zip(search_results.items(), [(hit[TEXT_FIELD], hit.matched_terms()) for hit in search_results]))
+        top_n = list(zip(search_results.items(),
+                         [(hit[TEXT_FIELD], hit.matched_terms(), hit[ATTRIBUTE_FIELD]) for hit in search_results]))
         result = []
         for doc_score, hit in top_n:
             result.append(SearchResult(initial_score=doc_score[1],
                                        text=hit[0],
+                                       attribute=hit[2],
                                        ix=ix,
                                        matched=[x[1] for x in hit[1]]))
         result = list(sorted(result, key=lambda x: x.score, reverse=True))
@@ -227,7 +238,9 @@ def lookup_attributes(chunk):
         print("Current iteration result: {} ".format(attributes))
         for word in terms:
             # sentence = sentence.replace(word, '-------')
-            chunk = fuzzy_replace(word, REPLACED, chunk)
+            # deal with bigram words that have "_" as connector
+            for single_word in word.split("_"):
+                chunk = fuzzy_replace(single_word, REPLACED, chunk)
         print("Tokens left: {}".format(chunk))
 
     if len(attributes) > 1:
